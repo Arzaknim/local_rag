@@ -1,34 +1,50 @@
 import os
-from langchain_community.document_loaders import DirectoryLoader, PyPDFLoader
+from langchain_community.document_loaders import DirectoryLoader, PyPDFLoader, TextLoader
 from langchain_community.vectorstores import Chroma
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+import xml.etree.ElementTree as ET
+
+from hdev_loader import HDevLoader
 
 # =====================================================================
 # 1. LOAD YOUR FOLDER OF PDFS (OR A SAMPLE FILE)
 # =====================================================================
+
+# PDFS
 PDF_FOLDER_PATH = os.path.expanduser("~/Downloads/halcon_pdfs") # Make sure this folder exists with PDFs inside
 
 print(f"Loading documents from {PDF_FOLDER_PATH}...")
 if os.path.exists(PDF_FOLDER_PATH):
-    loader = DirectoryLoader(
+    loaderpdf = DirectoryLoader(
         path=PDF_FOLDER_PATH, glob="**/*.pdf", loader_cls=PyPDFLoader
     )
-    docs = loader.load()
+    docs_pdf = loaderpdf.load()
 else:
     # Fallback to dummy document if folder isn't created yet
     from langchain_core.documents import Document
 
-    docs = [
+    docs_pdf = [
         Document(
             page_content="HALCON is a comprehensive standard software for machine vision."
         )
     ]
 
-print(f"Loaded {len(docs)} document pages.")
+# HDEV
+
+loaderhdev = DirectoryLoader(
+    "/home/arzakuser/MVTec/HALCON-24.11-Progress-Steady/examples/hdevelop",
+    glob="**/*.hdev",
+    loader_cls=HDevLoader,
+    # loader_kwargs={"encoding": "utf-8"},
+)
+docs_hdev = loaderhdev.load()
+
+
+print(f"Loaded {len(docs_pdf)} document pages.")
 
 # =====================================================================
 # 2. CHUNK THE DOCUMENTS
@@ -36,11 +52,11 @@ print(f"Loaded {len(docs)} document pages.")
 text_splitter = RecursiveCharacterTextSplitter(
     chunk_size=1000, chunk_overlap=150
 )
-print(f"Loaded {len(docs)} total pages. Filtering out Table of Contents...")
+print(f"Loaded {len(docs_pdf)} total pages. Filtering out Table of Contents...")
 
 # Filter out pages that look like a Table of Contents (lots of dot leaders)
 clean_docs = []
-for doc in docs:
+for doc in docs_pdf:
     # If a page has multiple dot sequences like '. . . .', skip it
     if doc.page_content.count(". . .") > 3:
         continue
@@ -54,6 +70,7 @@ print(f"Kept {len(clean_docs)} content pages after filtering.")
 # Then pass 'clean_docs' into your text splitter instead of 'docs'
 chunks = text_splitter.split_documents(clean_docs)
 print(f"Split into {len(chunks)} chunks.")
+chunks += docs_hdev
 
 # =====================================================================
 # 3. INITIALIZE EMBEDDINGS & VECTOR STORE
@@ -69,7 +86,10 @@ retriever = vector_store.as_retriever(search_kwargs={"k": 15})
 # =====================================================================
 # 4. BUILD THE RAG CHAIN USING CORE RUNNABLES
 # =====================================================================
-llm = ChatOllama(model="llama3", temperature=0)
+llm = ChatOllama(model="llama3", temperature=0,
+        num_ctx=16384,  # Allows the model to read large combined context (PDFs + whole .hdev files)
+        num_predict=2048,  # Allows the model to output a full, uninterrupted script without cutting off
+)
 
 template = """Answer the question based only on the following context:
 {context}
@@ -91,9 +111,14 @@ def format_docs(docs):
         page = doc.metadata.get("page", "Unknown page")
 
         # Prepend citation metadata to the chunk text
-        chunk_text = (
-            f"[Source PDF: {filename} | Page: {int(page) + 1}]\n{doc.page_content}"
-        )
+        if doc.metadata.get("doc_type") == 'code':
+            chunk_text = (
+                f"[Source Code File: {filename}]\n{doc.page_content}"
+            )
+        else:
+            chunk_text = (
+                f"[Source PDF: {filename} | Page: {int(page) + 1}]\n{doc.page_content}"
+            )
         formatted.append(chunk_text)
 
     return "\n\n".join(formatted)
