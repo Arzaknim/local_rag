@@ -3,10 +3,10 @@ from langchain_ollama import ChatOllama, OllamaEmbeddings
 import streamlit as st
 
 st.set_page_config(
-    page_title="HALCON Local RAG Assistant", page_icon="🤖", layout="wide"
+    page_title="Local RAG Assistant", page_icon="🤖", layout="wide"
 )
 
-st.title("👁️ HALCON Local RAG Developer Assistant")
+st.title("👁️Local RAG Developer Assistant")
 st.caption(
     "Offline RAG powered by Ollama (llama3), ChromaDB, and your local .hdev"
     " scripts & manuals."
