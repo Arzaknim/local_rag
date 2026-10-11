@@ -1,6 +1,6 @@
-# 👁️ Local HALCON RAG Assistant
+# 👁️ Local RAG Assistant
 
-An offline, local-first Retrieval-Augmented Generation (RAG) pipeline designed for HALCON developers. It combines chunked official PDF documentation with atomic `.hdev` script ingestion to deliver repo-specific code snippets and technical guidance via Ollama (`llama3`).
+An offline, local-first Retrieval-Augmented Generation (RAG) pipeline designed for developers. It combines chunked official PDF documentation with atomic script ingestion to deliver repo-specific code snippets and technical guidance via Ollama (`llama3`).
 
 ---
 
