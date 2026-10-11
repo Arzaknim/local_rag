@@ -21,7 +21,7 @@ def load_rag_system():
       persist_directory="./chroma_db", embedding_function=embeddings
   )
   retriever = vector_store.as_retriever(
-      search_kwargs={"k": 3}
+      search_kwargs={"k": 15}
   )  # Pulls top 3 matches (code or docs)
   llm = ChatOllama(model="llama3", num_ctx=16384, num_predict=2048)
   return retriever, llm
@@ -37,7 +37,7 @@ def format_docs(docs):
     doc_type = doc.metadata.get("doc_type", "documentation")
 
     if doc_type == "code":
-      filename = doc.metadata.get("filename", "unknown_script.hdev")
+      filename = doc.metadata.get("source", "unknown_script.hdev")
       header = f"=== HALCON CODE EXAMPLE: {filename} ==="
     else:
       source = doc.metadata.get("source", "Unknown").split("/")[-1]
@@ -77,7 +77,7 @@ if query := st.chat_input("Ask for a HALCON operator, code, or concept..."):
       context = format_docs(retrieved_docs)
 
       # Construct prompt with strict context constraint
-      prompt = f"""You are an expert HALCON developer. Answer the question using ONLY the provided context below. If the code or information is not in the context, state that clearly.
+      prompt = f"""You are an expert HALCON developer. Answer the user's question using the provided local code examples and documentation context. If the user asks for code, generate a clean HALCON script based on the operator patterns and context found below.
 
 --- CONTEXT ---
 {context}
